@@ -1,13 +1,6 @@
-const express = require('express');
 const cTable = require('console.table');
+const inquirer = require("inquirer");
 const mysql = require('mysql2');
-
-const PORT = process.env.PORT || 3001;
-const app = express();
-
-// Express middleware
-app.use(express.urlencoded({ extended: false }));
-app.use(express.json());
 
 // Connect to database
 const db = mysql.createConnection(
@@ -19,23 +12,124 @@ const db = mysql.createConnection(
     password: '',
     database: 'company_db'
   },
-  console.log(`Connected to the classlist_db database.`)
+  console.log(`Connected to the movies_db database.`)
 );
 
-// Default response for any other request (Not Found)
-app.use((req, res) => {
-  res.status(404).end();
-});
+// Menu prompts and container arrays
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+const mainMenuChoices = [
+  new inquirer.Separator(),
+  "View All Employees",
+  "Add Employee",
+  "Update Employee Role",
+  "View All Roles",
+  "Add Role",
+  "View all Departments",
+  "Add Department",
+  "Quit"
+];
+
+ async function viewAllEmployees() {
+    console.log('\n---- View All Employees ----\n');
+    const [rows] = await db.promise().query('SELECT * FROM employee');
+    console.table(rows);
+    mainMenu();
+}
+
+function addEmployee(employee) {
+  console.log('\n---- Add Employee ----\n');
+  const {first_name,last_name,role_id,manager_id} = employee;
+  db.query('INSERT INTO employee (first_name,last_name,role_id,manager_id) VALUES  (?,?,?,?)',first_name,last_name,role_id,manager_id, function (err, results) {
+      if (err) { console.log(err); };
+  });
+  console.log('\n');
+}
+
+function updateEmployeeRole(id,role) {
+  console.log('---- Update Employee Role ----');
+  db.query('UPDATE employee SET role_id=? WHERE id=?',role,id, function (err, results) {
+      if (err) { console.log(err); };
+  });
+  console.log('\n');
+}
+
+async function viewAllRoles() {
+  console.log('\n---- View All Roles ----\n');
+  const [rows] = await db.promise().query('SELECT * FROM role');
+  console.table(rows);
+  mainMenu();
+}
+
+function addRole(role) {
+  console.log('\n---- Add Role ----\n');
+  const {title,salary,department_id} = role;
+  db.query('INSERT INTO role (title,salary,department_id) VALUES  (?,?,?)',title,salary,department_id, function (err, results) {
+      if (err) { console.log(err); };
+  });
+  console.log('\n');
+}
+
+async function viewAllDepartments() {
+  console.log('\n---- View All Departments ----\n');
+  const [rows] = await db.promise().query('SELECT * FROM department');
+  console.table(rows);
+  mainMenu();
+}
+
+function addDepartment(department) {
+  console.log('\n---- Add Department ----\n');
+  const {name} = department;
+  db.query('INSERT INTO department (name) VALUES  (?)',name, function (err, results) {
+        if (err) { console.log(err); };
+  });
+  console.log('\n');
+}
+
+function quit() {
+  console.log('\nBye!\n');
+  process.exit(0);
+}
+
+function mainMenu() {
+    
+  inquirer.prompt([
+    {   type: 'list',
+        name: 'menuChoice',
+        message: 'What would you like to do?',
+        choices: mainMenuChoices,
+    },
+  ]).then( (answers)=>{
+   switch (answers.menuChoice) {
+          case 'View All Employees': viewAllEmployees();
+              break;
+          case 'Add Employee': addEmployee();
+              break;
+          case 'Update Employee Role': updateEmployeeRole();
+              break;
+          case 'View All Roles': viewAllRoles();
+              break;
+          case 'Add Role': addRole();
+              break;
+          case 'View all Departments': viewAllDepartments();
+              break;
+          case 'Add Department': addDepartment();
+              break;
+          case 'Quit': quit();
+              return;
+      };
+        
+  });
+
+
+}
+
+
 
 // INIT() function 
 
 function init() {
 
-    console.log("\n\n");
+    console.clear;
 
     console.log(`
     ███████╗███╗   ███╗██████╗ ██╗      ██████╗ ██╗   ██╗███████╗███████╗
@@ -52,28 +146,14 @@ function init() {
        ██║   ██║  ██║██║  ██║╚██████╗██║  ██╗███████╗██║  ██║            
        ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝            
                                                                          `);
-console.log(`
+    console.log(`
       ┌┐ ┬ ┬  ╔╗╔┬┌─┐┬┌─  ╔═╗┌─┐┬  ┬┬  ┌─┐┬  ┬┬┌─┐
       ├┴┐└┬┘  ║║║││  ├┴┐  ╠═╝├─┤└┐┌┘│  │ │└┐┌┘││  
       └─┘ ┴   ╝╚╝┴└─┘┴ ┴  ╩  ┴ ┴ └┘ ┴─┘└─┘ └┘ ┴└─┘
                                                                           `);
   
-    console.log("\n\n");
-    
-
-      // Query database
-    db.query('SELECT * FROM department', function (err, results) {
-      console.table(results);
-    });
-
-    db.query('SELECT * FROM role', function (err, results) {
-      console.table(results);
-    });
-
-    db.query('SELECT * FROM employee', function (err, results) {
-      console.table(results);
-    });
-
+   mainMenu();
+     
 }
 
 init();
