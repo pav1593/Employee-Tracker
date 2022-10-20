@@ -31,18 +31,67 @@ const mainMenuChoices = [
 
  async function viewAllEmployees() {
     console.log('\n---- View All Employees ----\n');
-    const [rows] = await db.promise().query('SELECT * FROM employee');
-    console.table(rows);
+    const [employees] = await db.promise().query('SELECT * FROM employee');
+    console.table(employees);
     mainMenu();
 }
 
-function addEmployee(employee) {
+async function addEmployee() {
   console.log('\n---- Add Employee ----\n');
-  const {first_name,last_name,role_id,manager_id} = employee;
-  db.query('INSERT INTO employee (first_name,last_name,role_id,manager_id) VALUES  (?,?,?,?)',first_name,last_name,role_id,manager_id, function (err, results) {
-      if (err) { console.log(err); };
+
+  const [role] = await db.promise().query('SELECT id as value, title as name FROM role');
+
+  const [employee] = await db.promise().query('SELECT concat(first_name," ",last_name) as name,id as value FROM employee');
+  employee.unshift({ name: 'None', value: 'null' });
+  //console.log(employee);
+  
+  inquirer.prompt([
+    {
+        type: 'input',
+        message: "Enter employee's first name (ENTER ':q' to return to the menu):",
+        name: 'first_Name',
+        validate(text) {
+          if (text==="") {
+            return `Must enter first name.`;
+          } else if (text===":q") mainMenu();
+          else 
+            return true;
+        }
+      },
+    {
+      type: 'input',
+      message: "Enter employee's last name (ENTER ':q' to return to the menu):",
+      name: 'last_Name',
+      validate(text) {
+        if (text==="") {
+          return `Must enter last name.`;
+        } else if (text===":q") mainMenu();
+        else 
+          return true;
+      }
+  },
+  {   type: 'rawlist',
+      name: 'role_id',
+      message: "Enter employee's role:",
+      choices: role,
+},
+  {   type: 'rawlist',
+      name: 'manager_id',
+      message: "Enter employee's role:",
+      choices: employee,
+},
+]).then((answers)=>{
+  const {first_Name,last_Name,role_id,manager_id} = answers;
+  
+  console.log(`\nAdded ${first_Name} ${last_Name} to employees.\n`);
+
+  db.query(`INSERT INTO employee (first_name,last_name,role_id,manager_id) VALUES ("${first_Name}","${last_Name}",${role_id},${manager_id})`,function (err, results) {
+    if (err) { console.log(err); }
   });
-  console.log('\n');
+  
+  mainMenu();
+});
+
 }
 
 function updateEmployeeRole(id,role) {
@@ -119,7 +168,6 @@ function mainMenu() {
       };
         
   });
-
 
 }
 
