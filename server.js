@@ -6,16 +6,16 @@ const mysql = require('mysql2');
 const db = mysql.createConnection(
   {
     host: 'localhost',
-    // MySQL username,
+    // *** PLEASE ENTER YOUR MYSQL USERNAME
     user: 'root',
-    // MySQL password
+    // *** PLEASE ENTER YOUR MYSQL PASSWORD
     password: '',
     database: 'company_db'
   },
   console.log(`Connected to the movies_db database.`)
 );
 
-// Menu prompts and container arrays
+// Main menu questions
 
 const mainMenuChoices = [
   new inquirer.Separator(),
@@ -29,21 +29,38 @@ const mainMenuChoices = [
   "Quit"
 ];
 
+// function to view all employees
+
  async function viewAllEmployees() {
     console.log('\n---- View All Employees ----\n');
-    const [employees] = await db.promise().query('SELECT * FROM employee');
+    const [employees] = await db.promise().query(`SELECT DISTINCT
+    a.id,
+    a.first_name as 'First Name',
+    a.last_name as 'Last Name',
+    b.title as 'Title',
+    b.salary as 'Salary',
+    c.name as 'Department',
+    IFNULL(CONCAT(d.first_name,' ',d.last_name),
+            'null') AS 'Manager'
+FROM 
+    employee as a 
+    JOIN role as b ON a.role_id=b.id
+    JOIN department as c ON b.department_id=c.id
+    LEFT JOIN employee as d ON a.manager_id=d.id`);
     console.table(employees);
     mainMenu();
 }
 
+// funciton to add an employee
 async function addEmployee() {
   console.log('\n---- Add Employee ----\n');
 
+  // queries the current roles for the select list
   const [role] = await db.promise().query('SELECT id as value, title as name FROM role');
 
+  // queries the current employees for the select list and adds a null for manager selection
   const [employee] = await db.promise().query('SELECT concat(first_name," ",last_name) as name,id as value FROM employee');
   employee.unshift({ name: 'None', value: 'null' });
-  //console.log(employee);
   
   inquirer.prompt([
     {
@@ -53,7 +70,7 @@ async function addEmployee() {
         validate(text) {
           if (text==="") {
             return `Must enter first name.`;
-          } else if (text===":q") mainMenu();
+          } else if (text===":q") {mainMenu();}
           else 
             return true;
         }
@@ -65,7 +82,7 @@ async function addEmployee() {
       validate(text) {
         if (text==="") {
           return `Must enter last name.`;
-        } else if (text===":q") mainMenu();
+        } else if (text===":q") {mainMenu();}
         else 
           return true;
       }
@@ -94,30 +111,107 @@ async function addEmployee() {
 
 }
 
-function updateEmployeeRole(id,role) {
+// allows updates to an employee role
+async function updateEmployeeRole() {
+
   console.log('---- Update Employee Role ----');
-  db.query('UPDATE employee SET role_id=? WHERE id=?',role,id, function (err, results) {
-      if (err) { console.log(err); };
+  
+  const [role] = await db.promise().query('SELECT id as value, title as name FROM role');
+
+  const [employee] = await db.promise().query('SELECT concat(first_name," ",last_name) as name,id as value FROM employee');
+  
+  inquirer.prompt([
+  
+  {   type: 'list',
+      name: 'employee_id',
+      message: "Enter employee to change role:",
+      choices: employee,
+},
+{   type: 'list',
+      name: 'new_role',
+      message: "Enter new role:",
+      choices: role,
+}
+]).then((answers)=>{
+  const {new_role,employee_id} = answers;
+  
+  console.log(`\nChanaged role to ${new_role}.\n`);
+
+  db.query(`UPDATE employee SET role_id=${new_role} WHERE id=${employee_id}`,function (err, results) {
+    if (err) { console.log(err); }
   });
-  console.log('\n');
+  
+  mainMenu();
+});
+
 }
 
+// views all roles
 async function viewAllRoles() {
   console.log('\n---- View All Roles ----\n');
-  const [rows] = await db.promise().query('SELECT * FROM role');
+  const [rows] = await db.promise().query(`SELECT 
+    r.id,
+    r.title as 'Title',
+    r.salary as 'Salary',
+    d.name as 'Department'
+FROM
+    role as r
+    JOIN department as d ON r.department_id=d.id`);
   console.table(rows);
   mainMenu();
 }
 
-function addRole(role) {
+// allows adding a role
+async function addRole() {
   console.log('\n---- Add Role ----\n');
-  const {title,salary,department_id} = role;
-  db.query('INSERT INTO role (title,salary,department_id) VALUES  (?,?,?)',title,salary,department_id, function (err, results) {
-      if (err) { console.log(err); };
+
+  const [deparment] = await db.promise().query('SELECT id as value, name FROM department');
+  
+  inquirer.prompt([
+    {
+        type: 'input',
+        message: "Enter role name: (ENTER ':q' to return to the menu):",
+        name: 'role',
+        validate(text) {
+          if (text==="") {
+            return `Must enter role name.`;
+          } else if (text===":q") {mainMenu();}
+          else 
+            return true;
+        }
+      },
+    {
+      type: 'input',
+      message: "Enter role salary: (ENTER ':q' to return to the menu):",
+      name: 'salary',
+      validate(text) {
+        if (text==="") {
+          return `Must enter salary.`;
+        } else if (text===":q") {mainMenu();}
+        else 
+          return true;
+      }
+  },
+  {   type: 'list',
+      name: 'department_id',
+      message: "Select department:",
+      choices: deparment,
+}
+]).then((answers)=>{
+  const {role,salary,department_id} = answers;
+  
+  console.log(`\nAdded ${role} to roles.\n`);
+
+  db.query(`INSERT INTO role (title,salary,department_id) VALUES ("${role}",${salary},${department_id})`,function (err, results) {
+    if (err) { console.log(err); }
   });
-  console.log('\n');
+  
+  mainMenu();
+});
+
 }
 
+// views all deparments
 async function viewAllDepartments() {
   console.log('\n---- View All Departments ----\n');
   const [rows] = await db.promise().query('SELECT * FROM department');
@@ -125,22 +219,47 @@ async function viewAllDepartments() {
   mainMenu();
 }
 
-function addDepartment(department) {
+// allows adding a department
+async function addDepartment() {
   console.log('\n---- Add Department ----\n');
-  const {name} = department;
-  db.query('INSERT INTO department (name) VALUES  (?)',name, function (err, results) {
-        if (err) { console.log(err); };
+  
+  inquirer.prompt([
+    {
+        type: 'input',
+        message: "Enter new department name: (ENTER ':q' to return to the menu):",
+        name: 'department',
+        validate(text) {
+          if (text==="") {
+            return `Must enter department name.`;
+          } else if (text===":q") {mainMenu();}
+          else 
+            return true;
+        }
+    }
+    
+]).then((answers)=>{
+  const {department} = answers;
+  
+  console.log(`\nAdded ${department} to departments.\n`);
+
+  db.query(`INSERT INTO department (name) VALUES ("${department}")`,function (err, results) {
+    if (err) { console.log(err); }
   });
-  console.log('\n');
+  
+  mainMenu();
+});
+
 }
 
+// quit option
 function quit() {
   console.log('\nBye!\n');
   process.exit(0);
 }
 
+// main menu function that presents the main choices and calls the appropriate next function using a switch statement
 function mainMenu() {
-    
+  console.log('\n');
   inquirer.prompt([
     {   type: 'list',
         name: 'menuChoice',
@@ -199,7 +318,9 @@ function init() {
       ├┴┐└┬┘  ║║║││  ├┴┐  ╠═╝├─┤└┐┌┘│  │ │└┐┌┘││  
       └─┘ ┴   ╝╚╝┴└─┘┴ ┴  ╩  ┴ ┴ └┘ ┴─┘└─┘ └┘ ┴└─┘
                                                                           `);
-  
+
+
+  // initial call to the main menu list
    mainMenu();
      
 }
